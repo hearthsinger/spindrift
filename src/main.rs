@@ -13,6 +13,7 @@ use tera::Tera;
 mod droplet;
 mod errors;
 mod spindrift;
+mod templ;
 
 #[derive(Debug, Parser)]
 #[clap(author, version, about)]
@@ -61,6 +62,7 @@ fn main() -> Result<(), Error> {
             }
         };
         tera.autoescape_on(vec![]);
+        tera.register_filter("batch", templ::BatchFilter);
 
         Arc::new(Mutex::new(tera))
     };
