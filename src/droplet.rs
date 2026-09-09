@@ -11,10 +11,14 @@ use std::path::Path;
 
 use crate::errors;
 
+const CONTENT_BLOCKS_REGEX_STR: &str = r"(?m)^\s*```\w*\n(?P<multiline_pre>[\s\S]*?)\n\s*```\s*$|^(?!\s*$).+(?:\r?\n(?!\s*$).+)*\r?\n?\s*$";
+
 const EM_REGEX_STR: &str = r"_(?P<em_text>.*?)_";
 const STRONG_REGEX_STR: &str = r"\*\*(?P<strong_text>.*?)\*\*";
 const A_REGEX_STR: &str = r"\[(?P<a_text>.*?)\]\((?P<a_href>.*?)\)";
 const CODE_INLINE_REGEX_STR: &str = r"(?<!\\)\`{1,}(?P<inline_pre>.+?)(?<!`)(?<!\\)\`{1,}(?!`)";
+const CODE_MULTILINE_REGEX_STR: &str =
+    r"(?m)^\s*\`\`\`(\w*)\n(?P<multiline_pre>[\s\S]*?)\n\`\`\`\s*$";
 const ESCAPED_SINGLE_BACKTICK_REGEX_STR: &str = r"\\\`";
 const LT_REGEX_STR: &str = r"\<";
 const GT_REGEX_STR: &str = r"\>";
@@ -22,10 +26,12 @@ const AMP_REGEX_STR: &str = r"\&";
 
 lazy_static! {
     // Unwrap these with certainty since the expressions themselves are constants and should compile just fine
+    static ref CONTENT_BLOCKS_REGEX: Regex = Regex::new(CONTENT_BLOCKS_REGEX_STR).unwrap();
     static ref EM_REGEX: Regex = Regex::new(EM_REGEX_STR).unwrap();
     static ref STRONG_REGEX: Regex = Regex::new(STRONG_REGEX_STR).unwrap();
     static ref A_REGEX: Regex = Regex::new(A_REGEX_STR).unwrap();
     static ref CODE_INLINE_REGEX: Regex = Regex::new(CODE_INLINE_REGEX_STR).unwrap();
+    static ref CODE_MULTILINE_REGEX: Regex = Regex::new(CODE_MULTILINE_REGEX_STR).unwrap();
     static ref ESCAPED_SINGLE_BACKTICK_REGEX: Regex = Regex::new(ESCAPED_SINGLE_BACKTICK_REGEX_STR).unwrap();
     static ref LT_REGEX: Regex = Regex::new(LT_REGEX_STR).unwrap();
     static ref GT_REGEX: Regex = Regex::new(GT_REGEX_STR).unwrap();
@@ -122,16 +128,41 @@ impl Droplet {
     }
 
     fn content_to_html(&self) -> Option<String> {
+        // A spindrift post is a multiline string in yaml, with basic markdown
+        // support.
+        //
+        // Imagine this is a big blob of stuff that we want to parse vertically,
+        // we'd see the following segments:
+        //
+        // 1. plain text
+        // 2. plain text with inline markdown (does not cross line boundaries)
+        // 3. markdown codeblocks - these cross line boundaries
+        //
+        // Since there could be new and empty lines in a codeblock, we first
+        // need to clump our countent by "unsplittable veritcal sections".
+        //
+        // The `CONTENT_BLOCKS_REGEX` expression lazily finds markdown-style
+        // codeblocks before greedily finding all other multiline blobs of text,
+        // separated by a full line of whitespace.
+        //
+        // This **only** works when we can parse our yaml's `content` block to
+        // multiline text, rather than singleline text, due to the way that
+        // `\n` characters get dropped in the parsed string unless the subsequent
+        // line begins with whitespace (or is itself a newline).
         self.content.as_ref().map(|content| {
-            content
-                .trim()
-                .split('\n')
+            CONTENT_BLOCKS_REGEX
+                .find_iter(content.trim())
+                .map(|block| block.unwrap().as_str().trim())
+                .map(|block| {
+                    if !block.starts_with("```") {
+                        block.replace("\n", " ").to_owned().to_string()
+                    } else {
+                        block.to_string()
+                    }
+                })
                 .map(|v| {
                     // Do this first, otherwise the rest of the escaped entites get double escaped
-                    let mut builder = AMP_REGEX 
-                        .replace_all(v, "&amp;")
-                        .to_owned()
-                        .to_string();
+                    let mut builder = AMP_REGEX.replace_all(&v, "&amp;").to_owned().to_string();
                     builder = GT_REGEX
                         .replace_all(&builder, "&gt;")
                         .to_owned()
@@ -154,6 +185,13 @@ impl Droplet {
                         .to_string();
                     builder = A_REGEX
                         .replace_all(&builder, "<a href=\"$a_href\">$a_text</a>")
+                        .to_owned()
+                        .to_string();
+                    builder = CODE_MULTILINE_REGEX
+                        .replace_all(
+                            &builder,
+                            "<pre class=\"droplet-codeblock\"><code>$multiline_pre</code></pre>",
+                        )
                         .to_owned()
                         .to_string();
                     CODE_INLINE_REGEX
