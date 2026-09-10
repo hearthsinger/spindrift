@@ -9,7 +9,7 @@ jobs:
       matched-files: ${{ steps.check-files.outputs.matched-files }}
     steps:
       - name: Checkout spindrift
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
 
       - name: Unshallow repository
         run: git fetch --prune --unshallow
@@ -21,7 +21,7 @@ jobs:
           echo "::group::Show changed files"
           echo "$(git log HEAD^1..HEAD --raw --no-decorate --name-only --pretty=oneline | tail -n +2)"
           echo "::endgroup::"
-          MATCHED_FILES=$(git log HEAD^1..HEAD --raw --no-decorate --name-only --pretty=oneline | tail -n +2 | sed -n '/^src/p' | wc -l)
+          MATCHED_FILES=$(git log HEAD^1..HEAD --raw --no-decorate --name-only --pretty=oneline | tail -n +2 | sed -n '/^src|workflows/p' | wc -l)
           echo "matched-files=${MATCHED_FILES}" >> $GITHUB_OUTPUT
           if [ ${MATCHED_FILES} -eq 0 ] ; then
             echo "No changes to \`src\` dir detected, not cutting release" >> $GITHUB_STEP_SUMMARY
@@ -37,7 +37,7 @@ jobs:
       tag: ${{ steps.generate-tag.outputs.tag-name }}
     steps:
       - name: Checkout spindrift
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
 
       - name: Unshallow repository
         run: git fetch --prune --unshallow
@@ -75,12 +75,14 @@ jobs:
     needs: make-tag
     steps:
       - name: Checkout spindrift
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
 
       - name: Setup rust toolchain
-        uses: actions-rs/toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@v2
         with:
           toolchain: stable
+          components: rustfmt
+          cache-workspace-crates: true
 
       - name: Build spindrift
         run: |
@@ -91,7 +93,7 @@ jobs:
 
       - name: Cut release and upload artifacts
         id: cut-release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           files: "target/release/spindrift"
           prerelease: true
