@@ -62,7 +62,7 @@ jobs:
             echo "tag-name=$CANDIDATE_TAG" >> $GITHUB_OUTPUT
             echo "Using tag name \`$CANDIDATE_TAG\`" >> $GITHUB_STEP_SUMMARY
           else
-            echo "tag-name::$CANDIDATE_TAG.$NEEDED_PART" >> $GITHUB_OUTPUT
+            echo "tag-name=$CANDIDATE_TAG.$NEEDED_PART" >> $GITHUB_OUTPUT
             echo "Using tag name \`$CANDIDATE_TAG.$NEEDED_PART\`" >> $GITHUB_STEP_SUMMARY
           fi
 
