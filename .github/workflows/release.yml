@@ -21,7 +21,7 @@ jobs:
           echo "::group::Show changed files"
           echo "$(git log HEAD^1..HEAD --raw --no-decorate --name-only --pretty=oneline | tail -n +2)"
           echo "::endgroup::"
-          MATCHED_FILES=$(git log HEAD^1..HEAD --raw --no-decorate --name-only --pretty=oneline | tail -n +2 | sed -n '/^src|workflows/p' | wc -l)
+          MATCHED_FILES=$(git log HEAD^1..HEAD --raw --no-decorate --name-only --pretty=oneline | tail -n +2 | sed -n '/(^src)|workflows/p' | wc -l)
           echo "matched-files=${MATCHED_FILES}" >> $GITHUB_OUTPUT
           if [ ${MATCHED_FILES} -eq 0 ] ; then
             echo "No changes to \`src\` dir detected, not cutting release" >> $GITHUB_STEP_SUMMARY
