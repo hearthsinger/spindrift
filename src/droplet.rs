@@ -154,15 +154,11 @@ impl Droplet {
                 .find_iter(content.trim())
                 .map(|block| block.unwrap().as_str().trim())
                 .map(|block| {
-                    if !block.starts_with("```") {
-                        block.replace("\n", " ").to_owned().to_string()
-                    } else {
-                        block.to_string()
-                    }
-                })
-                .map(|v| {
-                    // Do this first, otherwise the rest of the escaped entites get double escaped
-                    let mut builder = AMP_REGEX.replace_all(&v, "&amp;").to_owned().to_string();
+                    let mut builder = block.to_owned().to_string();
+                    builder = AMP_REGEX
+                        .replace_all(&builder, "&amp;")
+                        .to_owned()
+                        .to_string();
                     builder = GT_REGEX
                         .replace_all(&builder, "&gt;")
                         .to_owned()
@@ -175,29 +171,37 @@ impl Droplet {
                         .replace_all(&builder, "&grave;")
                         .to_owned()
                         .to_string();
-                    builder = EM_REGEX
-                        .replace_all(&builder, "<em>$em_text</em>")
-                        .to_owned()
-                        .to_string();
-                    builder = STRONG_REGEX
-                        .replace_all(&builder, "<strong>$strong_text</strong>")
-                        .to_owned()
-                        .to_string();
-                    builder = A_REGEX
-                        .replace_all(&builder, "<a href=\"$a_href\">$a_text</a>")
-                        .to_owned()
-                        .to_string();
-                    builder = CODE_MULTILINE_REGEX
-                        .replace_all(
-                            &builder,
-                            "<pre class=\"droplet-codeblock\"><code>$multiline_pre</code></pre>",
-                        )
-                        .to_owned()
-                        .to_string();
-                    CODE_INLINE_REGEX
-                        .replace_all(&builder, "<code>$inline_pre</code>")
-                        .to_owned()
-                        .to_string()
+
+                    if !block.starts_with("```") {
+                        // These are standard text with inline markdown. We'll drop the newlines in
+                        // these, since they're not structural
+                        builder = builder.replace("\n", " ").to_owned().to_string();
+                        builder = EM_REGEX
+                            .replace_all(&builder, "<em>$em_text</em>")
+                            .to_owned()
+                            .to_string();
+                        builder = STRONG_REGEX
+                            .replace_all(&builder, "<strong>$strong_text</strong>")
+                            .to_owned()
+                            .to_string();
+                        builder = A_REGEX
+                            .replace_all(&builder, "<a href=\"$a_href\">$a_text</a>")
+                            .to_owned()
+                            .to_string();
+                        builder = CODE_INLINE_REGEX
+                            .replace_all(&builder, "<code>$inline_pre</code>")
+                            .to_owned()
+                            .to_string();
+                    } else {
+                        builder = CODE_MULTILINE_REGEX
+                            .replace_all(
+                                &builder,
+                                "<pre class=\"droplet-codeblock\"><code>$multiline_pre</code></pre>",
+                            )
+                            .to_owned()
+                            .to_string();
+                    }
+                    builder
                 })
                 .map(|v| format!("<p class=\"droplet-text\">{}</p>", v))
                 .fold("".to_string(), |mut acc, paragraph| {
