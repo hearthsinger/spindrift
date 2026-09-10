@@ -83,6 +83,7 @@ jobs:
           toolchain: stable
           components: rustfmt
           cache-workspace-crates: true
+          build-warnings: ""
 
       - name: Build spindrift
         run: |
